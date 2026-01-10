@@ -1,0 +1,7 @@
+{
+  "name": "Online Food Delivery System - MERN",
+  "description": "Admas University Department of Computer Science Final Year Project. A digitized food logistics portal with Gemini AI integration.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
