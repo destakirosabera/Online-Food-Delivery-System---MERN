@@ -1,237 +1,473 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../../context/OrderContext';
 import { useAuth } from '../../context/AuthContext';
 import { useMenu } from '../../context/MenuContext';
-import { getAiLogisticsReport } from '../../services/orderService';
+import { useToast } from '../../context/ToastContext';
 import { formatPrice } from '../../utils/formatPrice';
+import { Food, Order, User } from '../../types';
 import Button from '../../components/common/Button';
-import BackButton from '../../components/common/BackButton';
+import Modal from '../../components/common/Modal';
 
-type Tab = 'stats' | 'orders' | 'users' | 'foods';
+type Tab = 'dashboard' | 'orders' | 'users' | 'menu' | 'settings';
 
-interface Props {
-  onBack: () => void;
-}
-
-const AdminDashboard: React.FC<Props> = ({ onBack }) => {
+const AdminDashboard: React.FC<{ onBack: () => void, onNavigate?: (page: any) => void }> = ({ onBack, onNavigate }) => {
   const { orders, fetchOrders, updateStatus } = useOrders();
-  const { user, logout } = useAuth();
-  const { menuItems, deleteFood } = useMenu();
-  const [activeTab, setActiveTab] = useState<Tab>('stats');
-  const [report, setReport] = useState<string>('');
-  const [loadingReport, setLoadingReport] = useState(false);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const { user, allUsers, logout, toggleUserStatus, addAdmin, deleteUser, updateUser, updatePassword } = useAuth();
+  const { menuItems, categories, addFood, updateFood, deleteFood } = useMenu();
+  const { showToast } = useToast();
+  
+  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedUserHistory, setSelectedUserHistory] = useState<User | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  
+  // Admin Management State
+  const [isAddingAdmin, setIsAddingAdmin] = useState(false);
+  const [adminForm, setAdminForm] = useState({ name: '', email: '', password: '' });
 
-  useEffect(() => {
-    if (!user?.isAdmin) {
-      window.location.href = '/'; 
-    }
-    fetchOrders();
-  }, [user]);
+  // Admin Own Settings State
+  const [isEditingSelf, setIsEditingSelf] = useState(false);
+  const [selfFormData, setSelfFormData] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+    phone: user?.phone || ''
+  });
+  const [passForm, setPassForm] = useState({ new: '', confirm: '' });
 
-  const generateReport = async () => {
-    setLoadingReport(true);
-    try {
-      const data = await getAiLogisticsReport();
-      setReport(data.report);
-    } catch (err) {
-      setReport("Logistics Insight: Operations are performing within optimal parameters. Peak demand identified in urban sectors. Recommend dynamic driver allocation.");
-    } finally {
-      setLoadingReport(false);
-    }
+  // Menu Management State
+  const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
+  const [foodToEdit, setFoodToEdit] = useState<Food | null>(null);
+  const [foodForm, setFoodForm] = useState<Partial<Food>>({
+    name: '', description: '', price: 0, category: 'Burger', ingredients: [],
+    sizeOptions: [{ name: 'Regular', priceOffset: 0 }], availableToppings: [],
+    availableSauces: [], imageUrl: '', isAvailable: true, spicyLevel: 'None'
+  });
+
+  useEffect(() => { fetchOrders(); }, []);
+
+  const isStrongPassword = (pass: string) => {
+    const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])(?=.{8,})/;
+    return strongRegex.test(pass);
   };
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
-    setUpdatingId(id);
-    await updateStatus(id, newStatus);
-    setUpdatingId(null);
-  };
+  const stats = useMemo(() => [
+    { label: 'Pending Dispatch', count: orders.filter(o => ['Pending', 'Preparing'].includes(o.status)).length, icon: 'ph-clock', color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+    { label: 'Active Transit', count: orders.filter(o => o.status === 'Out for Delivery').length, icon: 'ph-moped', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+    { label: 'Fulfilled', count: orders.filter(o => o.status === 'Delivered').length, icon: 'ph-check-circle', color: 'text-green-500', bg: 'bg-green-500/10' },
+    { label: 'User Registry', count: allUsers.length, icon: 'ph-users', color: 'text-ino-yellow', bg: 'bg-ino-yellow/10' },
+  ], [orders, allUsers]);
 
-  const stats = [
-    { label: 'Active Queue', count: orders.filter(o => o.status === 'Pending').length, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-    { label: 'Processing', count: orders.filter(o => o.status === 'Preparing' || o.status === 'Out for Delivery').length, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Completed', count: orders.filter(o => o.status === 'Delivered').length, color: 'text-green-600', bg: 'bg-green-50' },
-  ];
-
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case 'Pending': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'Preparing': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'Out for Delivery': return 'bg-purple-100 text-purple-700 border-purple-200';
-      case 'Delivered': return 'bg-green-100 text-green-700 border-green-200';
-      case 'Cancelled': return 'bg-red-100 text-red-700 border-red-200';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+  const handleLogout = () => {
+    logout();
+    if (onNavigate) {
+      onNavigate('home');
+    } else {
+      window.location.href = '/';
     }
   };
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'stats':
-        return (
-          <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {stats.map(s => (
-                <div key={s.label} className={`${s.bg} p-8 rounded-[2.5rem] border border-white/50 shadow-sm transition-transform hover:scale-[1.02]`}>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">{s.label}</p>
-                  <p className={`text-5xl font-black ${s.color}`}>{s.count}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-               <div className="bg-white p-10 rounded-[2.5rem] border shadow-sm">
-                  <h3 className="text-xl font-black text-admas-blue mb-8 uppercase tracking-tight">Revenue Performance</h3>
-                  <div className="space-y-6">
-                    <div className="flex justify-between items-center p-6 bg-gray-50 rounded-[2rem]">
-                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">System Load</span>
-                      <span className="font-black text-green-600 text-xs uppercase">Optimal</span>
-                    </div>
-                    <div className="flex justify-between items-center p-6 bg-gray-50 rounded-[2rem]">
-                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total Gross Value</span>
-                      <span className="font-black text-gray-900 text-2xl">{formatPrice(orders.reduce((a,b)=>a+b.totalPrice, 0))}</span>
-                    </div>
-                  </div>
-               </div>
-               <div className="bg-ino-dark text-white p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-ino-red/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2"></div>
-                  <div className="flex justify-between items-center mb-8 relative z-10">
-                    <h3 className="text-xl font-black text-ino-yellow uppercase tracking-tight">Logistics Intelligence</h3>
-                    <Button onClick={generateReport} loading={loadingReport} variant="outline" className="text-[9px] border-white/20 text-white py-2 px-4">
-                      Re-Analyze
-                    </Button>
-                  </div>
-                  <div className="text-gray-400 text-sm italic leading-relaxed relative z-10 border-l-2 border-ino-red/30 pl-6 py-2">
-                    {report ? <div dangerouslySetInnerHTML={{ __html: report.replace(/\n/g, '<br/>') }}></div> : <p>Awaiting operational data processing...</p>}
-                  </div>
-               </div>
-            </div>
-          </div>
-        );
-
-      case 'orders':
-        return (
-          <div className="bg-white rounded-[2.5rem] border shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <table className="w-full text-left">
-              <thead className="bg-gray-50 text-gray-400 border-b">
-                <tr>
-                  <th className="p-8 text-[10px] font-black uppercase tracking-widest">Transaction</th>
-                  <th className="p-8 text-[10px] font-black uppercase tracking-widest">Customer Details</th>
-                  <th className="p-8 text-[10px] font-black uppercase tracking-widest">Global Status</th>
-                  <th className="p-8 text-[10px] font-black uppercase tracking-widest text-right">Operational Control</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {orders.map(order => (
-                  <tr key={order._id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="p-8">
-                      <p className="font-black text-admas-blue text-sm">#{order._id.slice(-6).toUpperCase()}</p>
-                      <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase">Node: INO-ETH-01</p>
-                    </td>
-                    <td className="p-8">
-                      <p className="text-xs text-gray-700 font-bold">{order.orderItems.length} Culinary Assets</p>
-                      <p className="font-black text-gray-900 mt-1">{formatPrice(order.totalPrice)}</p>
-                    </td>
-                    <td className="p-8">
-                      <div className="flex items-center gap-2">
-                        {updatingId === order._id ? (
-                           <div className="flex items-center gap-2 text-admas-blue">
-                             <i className="ph ph-spinner animate-spin text-lg"></i>
-                             <span className="text-[9px] font-black uppercase tracking-widest">Syncing...</span>
-                           </div>
-                        ) : (
-                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border shadow-sm ${getStatusStyle(order.status)}`}>
-                            {order.status}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-8 text-right">
-                      <div className="inline-flex items-center bg-gray-50 p-1.5 rounded-2xl border">
-                        <select 
-                          value={order.status}
-                          disabled={updatingId === order._id}
-                          onChange={(e) => handleStatusChange(order._id, e.target.value)}
-                          className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-gray-600 outline-none cursor-pointer px-3 py-1.5 pr-8 focus:ring-0 disabled:opacity-50"
-                        >
-                          <option value="Pending">Pending</option>
-                          <option value="Preparing">Preparing</option>
-                          <option value="Out for Delivery">Dispatching</option>
-                          <option value="Delivered">Delivered</option>
-                          <option value="Cancelled">Cancelled</option>
-                        </select>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-
-      default:
-        return (
-          <div className="flex flex-col items-center justify-center p-20 bg-white rounded-[2.5rem] border border-dashed border-gray-200">
-            <i className="ph ph-briefcase text-6xl text-gray-200 mb-6"></i>
-            <p className="text-gray-400 font-black uppercase tracking-widest text-xs">Merchant control modules are currently restricted.</p>
-          </div>
-        );
+  const handleCreateAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (allUsers.some(u => u.email.toLowerCase() === adminForm.email.toLowerCase())) {
+      showToast("Email already exists", "error");
+      return;
     }
+    if (!isStrongPassword(adminForm.password)) {
+      showToast("Password too weak: Requires 8+ chars, Uppercase, Number, and Special Char.", "error");
+      return;
+    }
+    addAdmin(adminForm.name, adminForm.email, adminForm.password);
+    setIsAddingAdmin(false);
+    setAdminForm({ name: '', email: '', password: '' });
+    showToast("Admin access created successfully", "success");
   };
+
+  const handleUpdateSelfInfo = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    updateUser(user.id, selfFormData);
+    showToast('Profile updated', 'success');
+    setIsEditingSelf(false);
+  };
+
+  const handleUpdateSelfPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (passForm.new !== passForm.confirm) {
+      showToast('Passwords do not match', "error");
+      return;
+    }
+    if (!isStrongPassword(passForm.new)) {
+      showToast("Security Violation: New password must be strong (8+ chars, special char, number).", "error");
+      return;
+    }
+    updatePassword(user.id, passForm.new);
+    showToast('Password securely updated', 'success');
+    setPassForm({ new: '', confirm: '' });
+  };
+
+  const handleMenuSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (foodToEdit) {
+      updateFood(foodToEdit._id, foodForm);
+      showToast("Catalog updated", "success");
+    } else {
+      addFood(foodForm as Omit<Food, '_id'>);
+      showToast("Added to catalog", "success");
+    }
+    setIsMenuModalOpen(false);
+    setFoodToEdit(null);
+  };
+
+  const getUserOrders = (userId: string) => orders.filter(o => o.user === userId || (o.user as any)?._id === userId);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-32 relative">
-      <BackButton onClick={onBack} />
-      
-      <div className="max-w-7xl mx-auto px-6 py-16">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-10 mb-16 pl-16 md:pl-0">
-          <div>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 bg-ino-red rounded-lg flex items-center justify-center text-white shadow-lg">
-                <i className="ph-fill ph-shield-check text-lg"></i>
-              </div>
-              <span className="text-[10px] font-black text-ino-red uppercase tracking-[0.4em]">Logistics Command Hub</span>
-            </div>
-            <h1 className="text-4xl md:text-5xl font-black text-admas-blue tracking-tighter uppercase">Management Operations</h1>
+    <div className="min-h-screen bg-ino-dark flex font-sans overflow-hidden">
+      <aside className="w-20 md:w-72 border-r border-white/5 flex flex-col h-screen sticky top-0 bg-gray-900/60 backdrop-blur-3xl z-50">
+        <div className="p-10 flex items-center justify-center md:justify-start gap-4">
+          <div className="w-12 h-12 bg-ino-red rounded-2xl flex items-center justify-center text-white shadow-2xl">
+            <i className="ph-fill ph-shield-check text-2xl"></i>
           </div>
-          
-          <div className="flex gap-2 bg-white p-1.5 rounded-[2rem] border shadow-sm overflow-hidden">
-            {(['stats', 'orders', 'users', 'foods'] as const).map(tab => (
-              <button 
-                key={tab}
-                onClick={() => setActiveTab(tab)} 
-                className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                  activeTab === tab 
-                  ? 'bg-admas-blue text-white shadow-lg' 
-                  : 'text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
+          <div className="hidden md:block">
+            <h1 className="font-black text-white text-lg tracking-tighter uppercase leading-none">Admin Hub</h1>
+            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mt-1">Restricted Access</p>
           </div>
         </div>
-
-        {renderContent()}
-
-        <div className="mt-20 pt-10 border-t flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-4">
-             <div className="w-10 h-10 bg-white border rounded-full flex items-center justify-center text-admas-blue font-black text-xs shadow-sm">
-               {user?.name.charAt(0)}
-             </div>
-             <div>
-               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Authenticated Agent</p>
-               <p className="text-sm font-bold text-admas-blue">{user?.name}</p>
-             </div>
-          </div>
-          <button 
-            onClick={logout} 
-            className="flex items-center gap-2 text-ino-red text-[10px] font-black uppercase tracking-[0.2em] hover:text-red-700 transition-all hover:translate-x-1"
-          >
-            Terminal Logout <i className="ph-bold ph-power"></i>
+        <nav className="flex-grow p-6 space-y-3 mt-4">
+          {(['dashboard', 'orders', 'users', 'menu', 'settings'] as Tab[]).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full flex items-center justify-center md:justify-start gap-5 p-5 rounded-3xl transition-all duration-300 ${activeTab === tab ? 'bg-ino-red text-white shadow-2xl scale-[1.02]' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
+              <i className={`ph-fill ${tab === 'dashboard' ? 'ph-circles-four' : tab === 'orders' ? 'ph-scroll' : tab === 'users' ? 'ph-users' : tab === 'menu' ? 'ph-cooking-pot' : 'ph-gear'} text-2xl`}></i>
+              <span className="hidden md:inline text-[11px] font-black uppercase tracking-[0.2em]">{tab}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="p-10 border-t border-white/5 space-y-2">
+           <button onClick={() => onNavigate?.('home')} className="w-full flex items-center justify-center md:justify-start gap-5 p-4 text-ino-yellow hover:text-white transition-all bg-ino-yellow/5 rounded-2xl border border-ino-yellow/10">
+            <i className="ph-bold ph-globe text-2xl"></i>
+            <span className="hidden md:inline text-[11px] font-black uppercase tracking-widest">Site View</span>
+          </button>
+          <button onClick={handleLogout} className="w-full flex items-center justify-center md:justify-start gap-5 p-4 text-gray-500 hover:text-ino-red transition-all">
+            <i className="ph-bold ph-power text-2xl"></i>
+            <span className="hidden md:inline text-[11px] font-black uppercase tracking-widest">Log Out</span>
           </button>
         </div>
-      </div>
+      </aside>
+
+      <main className="flex-grow p-8 md:p-12 overflow-y-auto max-h-screen bg-ino-dark custom-scroll">
+        <div className="max-w-[100%] mx-auto relative">
+          <div className="flex justify-between items-center mb-10 pb-6 border-b border-white/5">
+            <div>
+               <h2 className="text-sm font-black text-gray-500 uppercase tracking-[0.3em]">System Control</h2>
+            </div>
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-6 py-2.5 bg-ino-red text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg hover:bg-red-700 transition-all active:scale-95"
+            >
+              <i className="ph-bold ph-power"></i> Log Out
+            </button>
+          </div>
+
+          {activeTab === 'dashboard' && (
+            <div className="animate-in fade-in space-y-12">
+              <h2 className="text-4xl font-black text-white uppercase tracking-tighter">Command Overview</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {stats.map(s => (
+                  <div key={s.label} className="bg-gray-800/40 p-8 rounded-[2.5rem] border border-white/5 backdrop-blur-md">
+                    <div className={`w-12 h-12 rounded-2xl ${s.bg} flex items-center justify-center mb-4 ${s.color}`}>
+                      <i className={`ph-fill ${s.icon} text-2xl`}></i>
+                    </div>
+                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">{s.label}</p>
+                    <p className={`text-2xl font-black ${s.color}`}>{s.count}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'orders' && (
+             <div className="animate-in fade-in space-y-10">
+               <h2 className="text-4xl font-black text-white uppercase tracking-tighter">Order Registry</h2>
+               <div className="bg-gray-800/20 rounded-[2.5rem] border border-white/5 overflow-x-auto shadow-2xl">
+                <table className="w-full text-left border-collapse min-w-[1400px]">
+                  <thead className="bg-gray-900/50 text-gray-500 text-[9px] font-black uppercase tracking-[0.1em]">
+                    <tr>
+                      <th className="p-6">Username</th>
+                      <th className="p-6">Email</th>
+                      <th className="p-6">Location</th>
+                      <th className="p-6 text-ino-yellow">Logistics Fee</th>
+                      <th className="p-6">Ref ID</th>
+                      <th className="p-6">Subtotal</th>
+                      <th className="p-6">Gross Total</th>
+                      <th className="p-6">Control</th>
+                      <th className="p-6 text-right">Insight</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-[11px] font-bold text-white">
+                    {orders.map(o => {
+                      const orderUser = typeof o.user === 'object' 
+                        ? o.user 
+                        : allUsers.find(u => u.id === o.user || (u as any)._id === o.user);
+
+                      const subtotal = o.totalPrice - (o.deliveryFee || 50);
+
+                      return (
+                        <tr key={o._id} className="hover:bg-white/5 transition-colors group">
+                          <td className="p-6">{orderUser?.name || 'Unknown'}</td>
+                          <td className="p-6 text-gray-400">{orderUser?.email || 'N/A'}</td>
+                          <td className="p-6 text-gray-400 truncate max-w-xs">{o.deliveryLocation || 'Sector Hub'}</td>
+                          <td className="p-6 text-ino-yellow">{formatPrice(o.deliveryFee || 50)}</td>
+                          <td className="p-6 font-mono text-gray-500">#{o._id.slice(-6).toUpperCase()}</td>
+                          <td className="p-6 text-white/70">{formatPrice(subtotal)}</td>
+                          <td className="p-6 text-ino-yellow font-black">{formatPrice(o.totalPrice)}</td>
+                          <td className="p-6">
+                             <select 
+                              value={o.status}
+                              onChange={(e) => updateStatus(o._id, e.target.value)}
+                              className="bg-gray-700 text-white text-[9px] font-black uppercase px-3 py-1.5 rounded-lg outline-none border border-white/10"
+                             >
+                              <option value="Pending">Pending</option>
+                              <option value="Preparing">Preparing</option>
+                              <option value="Out for Delivery">Out for Delivery</option>
+                              <option value="Delivered">Delivered</option>
+                              <option value="Cancelled">Cancelled</option>
+                             </select>
+                          </td>
+                          <td className="p-6 text-right">
+                             <button onClick={() => setSelectedOrder(o)} className="p-2 bg-white/5 rounded-lg text-white hover:bg-ino-yellow hover:text-ino-dark transition-all"><i className="ph ph-info text-lg"></i></button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+               </div>
+             </div>
+          )}
+
+          {activeTab === 'users' && (
+            <div className="animate-in fade-in space-y-10">
+               <div className="flex justify-between items-center">
+                 <h2 className="text-4xl font-black text-white uppercase tracking-tighter">Human Resources</h2>
+                 <Button onClick={() => setIsAddingAdmin(true)} className="bg-ino-yellow text-ino-dark px-10 rounded-2xl text-[10px] uppercase font-black tracking-widest shadow-xl">New Admin</Button>
+               </div>
+               <div className="bg-gray-800/20 rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-900/50 text-gray-500 text-[10px] font-black uppercase tracking-[0.2em]">
+                    <tr><th className="p-8">Identification</th><th className="p-8">Privilege</th><th className="p-8">Registry Status</th><th className="p-8 text-right">Operational Tools</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-xs font-bold text-white">
+                    {allUsers.map(u => (
+                      <tr key={u.id} className="hover:bg-white/5 transition-colors group">
+                        <td className="p-8">
+                           <p className="font-black text-white">{u.name}</p>
+                           <p className="text-[10px] text-gray-500 font-mono mt-0.5">{u.email}</p>
+                        </td>
+                        <td className="p-8">
+                           <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${u.isAdmin ? 'bg-ino-red text-white' : 'bg-gray-700 text-gray-300'}`}>
+                             {u.isAdmin ? 'Admin' : 'End User'}
+                           </span>
+                        </td>
+                        <td className="p-8">
+                           <button onClick={() => toggleUserStatus(u.id)} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all ${u.status === 'Active' ? 'text-green-500 bg-green-500/10 hover:bg-green-500/20' : 'text-red-500 bg-red-500/10 hover:bg-red-500/20'}`}>
+                             {u.status}
+                           </button>
+                        </td>
+                        <td className="p-8 text-right space-x-2">
+                           <button onClick={() => setSelectedUserHistory(u)} className="p-3 bg-white/5 rounded-xl text-white hover:bg-ino-yellow hover:text-ino-dark transition-all" title="View History"><i className="ph ph-clock-counter-clockwise text-lg"></i></button>
+                           {u.id !== user?.id && <button onClick={() => deleteUser(u.id)} className="p-3 bg-red-600/10 text-red-500 hover:bg-red-600 hover:text-white rounded-xl transition-all"><i className="ph ph-trash text-lg"></i></button>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+               </div>
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="animate-in fade-in space-y-12">
+               <h2 className="text-4xl font-black text-white uppercase tracking-tighter">Portal Settings</h2>
+               <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
+                  <div className="bg-gray-800/40 p-10 rounded-[3rem] border border-white/5 backdrop-blur-md shadow-2xl">
+                    <div className="flex justify-between items-center mb-10">
+                      <div>
+                         <h3 className="text-xl font-black text-white uppercase tracking-tight">Identity Details</h3>
+                         <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-1">Manage core staff identification</p>
+                      </div>
+                      <button onClick={() => setIsEditingSelf(!isEditingSelf)} className="text-[10px] font-black text-ino-yellow uppercase tracking-widest hover:underline">
+                        {isEditingSelf ? 'Cancel' : 'Edit Identity'}
+                      </button>
+                    </div>
+                    <form onSubmit={handleUpdateSelfInfo} className="space-y-6">
+                       <div className="space-y-1">
+                          <label className="text-[9px] font-black text-gray-500 uppercase ml-4">Full Name</label>
+                          <input type="text" className="w-full p-5 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold text-white outline-none focus:ring-1 ring-ino-yellow transition-all disabled:opacity-40" disabled={!isEditingSelf} value={selfFormData.name} onChange={e => setSelfFormData({...selfFormData, name: e.target.value})} />
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[9px] font-black text-gray-500 uppercase ml-4">Email Address</label>
+                          <input type="email" className="w-full p-5 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold text-white outline-none focus:ring-1 ring-ino-yellow transition-all disabled:opacity-40" disabled={!isEditingSelf} value={selfFormData.email} onChange={e => setSelfFormData({...selfFormData, email: e.target.value})} />
+                       </div>
+                       {isEditingSelf && (
+                         <Button type="submit" className="w-full py-5 rounded-3xl text-[10px] font-black uppercase bg-ino-yellow text-ino-dark shadow-xl tracking-widest">Commit Changes</Button>
+                       )}
+                    </form>
+                  </div>
+
+                  <div className="bg-gray-800/40 p-10 rounded-[3.5rem] border border-white/5 backdrop-blur-md shadow-2xl relative overflow-hidden group">
+                     <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><i className="ph-fill ph-lock-key text-8xl text-ino-red"></i></div>
+                     <div className="mb-10">
+                        <h3 className="text-xl font-black text-white uppercase tracking-tight">Access Control</h3>
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-1">Update access credential strength</p>
+                     </div>
+                     <form onSubmit={handleUpdateSelfPassword} className="space-y-6">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-gray-500 uppercase ml-4">New Secret Key</label>
+                          <input type="password" placeholder="••••••••" className="w-full p-5 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold text-white outline-none focus:ring-1 ring-ino-red" required value={passForm.new} onChange={e => setPassForm({...passForm, new: e.target.value})} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-gray-500 uppercase ml-4">Confirm Key</label>
+                          <input type="password" placeholder="••••••••" className="w-full p-5 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold text-white outline-none focus:ring-1 ring-ino-red" required value={passForm.confirm} onChange={e => setPassForm({...passForm, confirm: e.target.value})} />
+                        </div>
+                        <Button type="submit" className="w-full py-5 rounded-3xl text-[10px] font-black uppercase bg-ino-red text-white hover:bg-red-700 transition-all tracking-[0.2em] shadow-xl">Update Access Key</Button>
+                     </form>
+                  </div>
+               </div>
+            </div>
+          )}
+        </div>
+
+        {/* RECEIPT ZOOM OVERLAY ("CLEAR VISION") */}
+        {zoomedImage && (
+          <div 
+            className="fixed inset-0 z-[110] bg-black/98 flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in"
+            onClick={() => setZoomedImage(null)}
+          >
+            <div className="relative max-w-5xl w-full max-h-full flex items-center justify-center p-6">
+              <img src={zoomedImage} className="max-w-full max-h-[95vh] object-contain rounded-2xl shadow-[0_0_150px_rgba(255,255,255,0.2)] ring-1 ring-white/20" alt="Receipt Zoom" />
+              <button className="absolute -top-14 right-6 text-white hover:text-ino-red text-5xl transition-all">
+                <i className="ph ph-x-circle"></i>
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* USER HISTORY MODAL */}
+      <Modal isOpen={!!selectedUserHistory} onClose={() => setSelectedUserHistory(null)} title={`Transmission Log: ${selectedUserHistory?.name}`}>
+         <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scroll">
+            {selectedUserHistory && getUserOrders(selectedUserHistory.id).length > 0 ? (
+               getUserOrders(selectedUserHistory.id).map(o => (
+                  <div key={o._id} className="p-6 bg-gray-50 dark:bg-white/5 rounded-3xl border border-gray-100 dark:border-white/10 flex justify-between items-center">
+                     <div>
+                        <p className="text-[10px] font-black text-ino-red uppercase tracking-widest">#{o._id.slice(-6).toUpperCase()}</p>
+                        <p className="text-xs font-bold text-gray-600 dark:text-gray-400 mt-1">{new Date(o.createdAt).toLocaleString()}</p>
+                     </div>
+                     <div className="text-right">
+                        <p className="text-lg font-black text-black dark:text-white">{formatPrice(o.totalPrice)}</p>
+                        <span className="text-[8px] font-black uppercase text-ino-yellow tracking-widest">{o.status}</span>
+                     </div>
+                  </div>
+               ))
+            ) : (
+               <div className="py-20 text-center opacity-40">
+                  <i className="ph ph-ghost text-5xl mb-4"></i>
+                  <p className="text-[10px] font-black uppercase tracking-widest">No Log Entries</p>
+               </div>
+            )}
+         </div>
+      </Modal>
+
+      {/* ADD ADMIN MODAL */}
+      <Modal isOpen={isAddingAdmin} onClose={() => setIsAddingAdmin(false)} title="New System Admin">
+         <form onSubmit={handleCreateAdmin} className="space-y-6">
+            <input type="text" placeholder="Full Name" required className="w-full p-5 rounded-2xl bg-gray-50 dark:bg-gray-800 border-none outline-none text-xs font-bold" value={adminForm.name} onChange={e => setAdminForm({...adminForm, name: e.target.value})} />
+            <input type="email" placeholder="Email Address" required className="w-full p-5 rounded-2xl bg-gray-50 dark:bg-gray-800 border-none outline-none text-xs font-bold" value={adminForm.email} onChange={e => setAdminForm({...adminForm, email: e.target.value})} />
+            <div className="space-y-2">
+              <input type="password" placeholder="Secure Password" required className="w-full p-5 rounded-2xl bg-gray-50 dark:bg-gray-800 border-none outline-none text-xs font-bold" value={adminForm.password} onChange={e => setAdminForm({...adminForm, password: e.target.value})} />
+              <p className="text-[8px] font-bold text-gray-500 uppercase px-2">Must be 8+ chars with uppercase, number & symbol</p>
+            </div>
+            <Button type="submit" className="w-full py-5 rounded-3xl text-[10px] uppercase font-black tracking-widest bg-ino-red text-white shadow-xl">Commit Credentials</Button>
+         </form>
+      </Modal>
+
+      {/* ORDER DETAIL MODAL */}
+      <Modal isOpen={!!selectedOrder} onClose={() => setSelectedOrder(null)} title="Order Manifest">
+         {selectedOrder && (
+           <div className="space-y-8 max-h-[75vh] overflow-y-auto pr-2 custom-scroll">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div>
+                   <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">Verification Asset (Big View)</p>
+                   {selectedOrder.paymentReceipt ? (
+                     <div 
+                        className="aspect-[4/5] bg-gray-100 dark:bg-gray-900 rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-700 cursor-zoom-in group relative shadow-inner"
+                        onClick={() => setZoomedImage(selectedOrder.paymentReceipt!)}
+                     >
+                        <img src={selectedOrder.paymentReceipt} className="w-full h-full object-contain" alt="Receipt Proof" />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                           <div className="bg-white/20 backdrop-blur-xl p-6 rounded-full border border-white/30">
+                              <i className="ph ph-magnifying-glass-plus text-white text-4xl"></i>
+                           </div>
+                        </div>
+                     </div>
+                   ) : (
+                     <div className="aspect-[4/5] bg-gray-50 dark:bg-gray-900 rounded-3xl flex items-center justify-center border-2 border-dashed border-gray-100 dark:border-gray-800">
+                        <p className="text-[9px] font-black text-gray-300 dark:text-gray-700 uppercase">Missing Receipt</p>
+                     </div>
+                   )}
+                </div>
+                <div className="space-y-8">
+                   <div>
+                      <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Order Identifier</p>
+                      <p className="text-2xl font-mono font-black text-black dark:text-white">#{selectedOrder._id.slice(-10).toUpperCase()}</p>
+                   </div>
+                   <div className="pt-6 border-t border-gray-100 dark:border-white/5">
+                      <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-4">Payload Content</p>
+                      <div className="space-y-4">
+                         {selectedOrder.orderItems.map((item, idx) => {
+                            const config = (item as any).config || {};
+                            return (
+                              <div key={idx} className="bg-gray-50 dark:bg-white/5 p-6 rounded-3xl border border-gray-100 dark:border-white/10">
+                                 <div className="flex justify-between items-start mb-2">
+                                    <span className="text-[12px] font-black text-gray-800 dark:text-gray-200">{item.qty}x {item.name}</span>
+                                    <span className="text-[11px] font-black text-ino-red">{formatPrice(item.price)}</span>
+                                 </div>
+                                 <div className="space-y-1 opacity-70">
+                                    <p className="text-[9px] font-black uppercase text-blue-500">Node: {config.selectedSize || 'Regular'}</p>
+                                    {config.notes && <p className="text-[9px] italic text-gray-500 mt-2">Instruction: {config.notes}</p>}
+                                 </div>
+                              </div>
+                            );
+                         })}
+                      </div>
+                   </div>
+                   <div className="pt-8 border-t border-gray-100 dark:border-white/10">
+                      <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Financial Liability</p>
+                      <p className="text-4xl font-black text-ino-red">{formatPrice(selectedOrder.totalPrice)}</p>
+                   </div>
+                </div>
+              </div>
+           </div>
+         )}
+      </Modal>
+
+      {/* MENU ASSET MODAL */}
+      <Modal isOpen={isMenuModalOpen} onClose={() => setIsMenuModalOpen(false)} title={foodToEdit ? "Modify Asset" : "New Catalog Asset"}>
+         <form onSubmit={handleMenuSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scroll">
+            <div className="grid grid-cols-2 gap-4">
+              <input type="text" placeholder="Item Name" required className="w-full p-5 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-transparent dark:border-gray-700 text-xs font-bold" value={foodForm.name} onChange={e => setFoodForm({...foodForm, name: e.target.value})} />
+              <select className="w-full p-5 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-transparent dark:border-gray-700 text-[10px] font-black uppercase" value={foodForm.category} onChange={e => setFoodForm({...foodForm, category: e.target.value})}>
+                {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <textarea placeholder="Description" required className="w-full p-5 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-transparent dark:border-gray-700 text-xs font-bold h-24" value={foodForm.description} onChange={e => setFoodForm({...foodForm, description: e.target.value})} />
+            <div className="grid grid-cols-2 gap-4">
+               <input type="number" placeholder="Base Price" required className="w-full p-5 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-transparent dark:border-gray-700 text-xs font-bold" value={foodForm.price} onChange={e => setFoodForm({...foodForm, price: Number(e.target.value)})} />
+               <input type="text" placeholder="Image Resource URL" required className="w-full p-5 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-transparent dark:border-gray-700 text-xs font-bold" value={foodForm.imageUrl} onChange={e => setFoodForm({...foodForm, imageUrl: e.target.value})} />
+            </div>
+            <Button type="submit" className="w-full py-5 rounded-3xl text-[10px] uppercase font-black tracking-widest bg-ino-red text-white">Commit Asset</Button>
+         </form>
+      </Modal>
     </div>
   );
 };

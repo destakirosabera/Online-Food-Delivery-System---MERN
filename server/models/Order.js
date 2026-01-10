@@ -5,7 +5,7 @@ const orderSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
-    ref: 'User', // Reference to the User model
+    ref: 'User',
   },
   orderItems: [
     {
@@ -15,8 +15,9 @@ const orderSchema = new mongoose.Schema({
       food: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
-        ref: 'Food', // Reference to the Food model
+        ref: 'Food',
       },
+      config: { type: Object }
     },
   ],
   totalPrice: {
@@ -24,14 +25,32 @@ const orderSchema = new mongoose.Schema({
     required: true,
     default: 0.0,
   },
+  deliveryLocation: {
+    type: String,
+    required: true,
+    default: 'Point of Interest'
+  },
+  deliveryFee: {
+    type: Number,
+    required: true,
+    default: 0
+  },
   status: {
     type: String,
     required: true,
     enum: ['Pending', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'],
     default: 'Pending',
   },
+  paymentMethod: {
+    type: String,
+    required: false,
+  },
+  paymentReceipt: {
+    type: String, // Store base64 or image URL
+    required: false,
+  }
 }, {
-  timestamps: true, // Automatically adds createdAt and updatedAt fields
+  timestamps: true,
 });
 
 const Order = mongoose.model('Order', orderSchema);

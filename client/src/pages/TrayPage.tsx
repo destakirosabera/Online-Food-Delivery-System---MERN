@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { useCart } from '../context/CartContext';
-import { useOrders } from '../context/OrderContext';
 import { formatPrice } from '../utils/formatPrice';
 import Button from '../components/common/Button';
 import BackButton from '../components/common/BackButton';
@@ -12,46 +11,20 @@ interface Props {
 }
 
 const TrayPage: React.FC<Props> = ({ onNavigate, onBack }) => {
-  const { cart, removeFromCart, clearCart } = useCart();
-  const { placeOrder } = useOrders();
-
+  const { cart, removeFromCart } = useCart();
   const total = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
 
-  const handleCheckout = async () => {
-    if (cart.length === 0) return;
-
-    try {
-      const orderPayload = {
-        orderItems: cart.map(item => ({
-          name: item.name,
-          qty: item.qty,
-          price: item.price,
-          food: item.foodId,
-          config: {
-            size: item.selectedSize,
-            sauce: item.selectedSauce,
-            toppings: item.selectedToppings,
-            modifiers: item.modifiers,
-            pref: item.cookingPreference,
-            notes: item.notes
-          }
-        })),
-        totalPrice: total
-      };
-
-      await placeOrder(orderPayload);
-      clearCart();
-      onNavigate('tracker');
-    } catch (err) {
-      alert("System Sync Failure: Connection to the main server was lost.");
+  const handleGoToPayment = () => {
+    if (cart.length > 0) {
+      onNavigate('payment');
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-24 relative">
+    <div className="max-w-6xl mx-auto px-4 py-24 relative min-h-screen">
       <BackButton onClick={onBack} />
       
-      <div className="flex items-center gap-4 mb-10 pl-14 md:pl-0">
+      <div className="flex items-center gap-4 mb-10">
         <h1 className="text-3xl md:text-4xl font-black text-admas-blue dark:text-white tracking-tight uppercase">Your Selection Tray</h1>
         <div className="h-1 flex-1 bg-gray-100 dark:bg-gray-800 rounded-full"></div>
       </div>
@@ -76,14 +49,6 @@ const TrayPage: React.FC<Props> = ({ onNavigate, onBack }) => {
                     <div className="flex flex-wrap gap-2 mt-1 mb-2">
                        <span className="text-[9px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full font-bold">{item.selectedSize}</span>
                        <span className="text-[9px] bg-red-50 dark:bg-red-900/30 text-ino-red px-2 py-0.5 rounded-full font-bold">Sauce: {item.selectedSauce}</span>
-                       {item.cookingPreference && (
-                         <span className="text-[9px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full font-bold">{item.cookingPreference}</span>
-                       )}
-                    </div>
-                    <div className="text-[10px] text-gray-400 flex flex-wrap gap-x-3">
-                        {Object.entries(item.modifiers).filter(([_,v]) => v !== 'Standard').map(([k, v]) => (
-                          <span key={k}>{v === 'Remove' ? '-' : '+'} {k}</span>
-                        ))}
                     </div>
                   </div>
                 </div>
@@ -111,10 +76,6 @@ const TrayPage: React.FC<Props> = ({ onNavigate, onBack }) => {
                 <span>Tray Subtotal</span>
                 <span>{formatPrice(total)}</span>
               </div>
-              <div className="flex justify-between text-gray-400 font-bold text-sm">
-                <span>Delivery Service</span>
-                <span className="text-ino-yellow uppercase">Express</span>
-              </div>
               <div className="pt-8 border-t border-white/10 flex justify-between font-black text-3xl">
                 <span>Total</span>
                 <span className="text-ino-yellow">{formatPrice(total)}</span>
@@ -122,15 +83,14 @@ const TrayPage: React.FC<Props> = ({ onNavigate, onBack }) => {
             </div>
 
             <Button 
-              onClick={handleCheckout} 
+              onClick={handleGoToPayment} 
               disabled={cart.length === 0} 
               className="w-full py-5 text-xl bg-ino-yellow text-admas-blue hover:bg-yellow-400 border-none rounded-[25px]"
             >
-              Confirm & Order
+              Confirm Selection
             </Button>
-            
             <p className="mt-8 text-[9px] text-gray-500 text-center leading-relaxed font-bold uppercase tracking-tighter">
-              * Verification by In-N-Out Logistics required upon receipt.
+              Next step: Secure Payment & Receipt Upload
             </p>
           </div>
         </div>

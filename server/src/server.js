@@ -13,11 +13,11 @@ const startServer = async () => {
         app.listen(PORT, () => {
             console.log(`
             ================================================
-            ADMAS UNIVERSITY - LOGISTICS SERVER ACTIVE
+            IN-N-OUT LOGISTICS SERVER ACTIVE
             ================================================
             Status: OPERATIONAL
             Port: ${PORT}
-            Architecture: MERN (Decoupled)
+            Architecture: MERN (Enterprise Ready)
             AI Core: Gemini 3 Pro
             ================================================
             `);

@@ -11,26 +11,7 @@ interface Props {
 
 const OrderTrackerPage: React.FC<Props> = ({ onBack }) => {
   const { currentOrder } = useOrders();
-  const [insight, setInsight] = useState<string>('');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (currentOrder) {
-      generateLogisticsInsight();
-    }
-  }, [currentOrder?.status]);
-
-  const generateLogisticsInsight = async () => {
-    setLoading(true);
-    try {
-      const res = await api.post('/orders/report', { orderId: currentOrder?._id });
-      setInsight(res.data.report || "Synchronizing with delivery network. Status confirmed.");
-    } catch (err) {
-      setInsight("In-N-Out Registry: Order verified. Processing sequence initiated at the primary hub.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (!currentOrder) {
     return (
@@ -91,47 +72,39 @@ const OrderTrackerPage: React.FC<Props> = ({ onBack }) => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 pt-12 border-t border-gray-50 dark:border-gray-700">
-          <div>
-            <h3 className="font-black text-xs uppercase tracking-widest mb-6 flex items-center gap-2 text-admas-blue dark:text-ino-yellow">
-              <i className="ph-fill ph-article text-ino-red text-lg"></i> Order Details
-            </h3>
-            <div className="space-y-4 bg-gray-50/50 dark:bg-gray-900/30 p-6 rounded-3xl border border-gray-100 dark:border-gray-700">
-              {currentOrder.orderItems.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center text-sm">
-                  <span className="font-bold text-gray-700 dark:text-gray-300">{item.qty}x {item.name}</span>
-                  <span className="font-black text-admas-blue dark:text-white">{formatPrice(item.price * item.qty)}</span>
+          <div className="space-y-8">
+            <div>
+              <h3 className="font-black text-xs uppercase tracking-widest mb-6 flex items-center gap-2 text-admas-blue dark:text-ino-yellow">
+                <i className="ph-fill ph-article text-ino-red text-lg"></i> Payload Manifest
+              </h3>
+              <div className="space-y-4 bg-gray-50/50 dark:bg-gray-900/30 p-6 rounded-3xl border border-gray-100 dark:border-gray-700">
+                {currentOrder.orderItems.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-sm">
+                    <span className="font-bold text-gray-700 dark:text-gray-300">{item.qty}x {item.name}</span>
+                    <span className="font-black text-admas-blue dark:text-white">{formatPrice(item.price * item.qty)}</span>
+                  </div>
+                ))}
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700 font-black flex justify-between text-lg text-admas-blue dark:text-white">
+                  <span>Gross Value</span>
+                  <span className="text-ino-red">{formatPrice(currentOrder.totalPrice)}</span>
                 </div>
-              ))}
-              <div className="pt-4 border-t border-gray-200 dark:border-gray-700 font-black flex justify-between text-xl text-admas-blue dark:text-white">
-                <span>Total Amount</span>
-                <span className="text-ino-red">{formatPrice(currentOrder.totalPrice)}</span>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-black text-xs uppercase tracking-widest mb-4 flex items-center gap-2 text-admas-blue dark:text-ino-yellow">
+                <i className="ph-fill ph-map-pin text-ino-red text-lg"></i> Delivery Location
+              </h3>
+              <div className="p-6 bg-gray-50/50 dark:bg-gray-900/30 rounded-3xl border border-gray-100 dark:border-gray-700">
+                <p className="text-xs font-bold text-gray-600 dark:text-gray-300 italic leading-relaxed">
+                  {currentOrder.deliveryLocation || 'Sector Assigned Hub'}
+                </p>
               </div>
             </div>
           </div>
 
           <div className="space-y-6">
-            <div className="bg-ino-dark text-white p-8 rounded-[32px] shadow-xl relative overflow-hidden group border border-white/5">
-               <div className="absolute -top-10 -right-10 w-32 h-32 bg-ino-red/10 rounded-full blur-3xl"></div>
-               <h3 className="font-black text-xs uppercase tracking-widest mb-4 flex items-center gap-2 text-ino-yellow">
-                <i className="ph-fill ph-lightning text-lg"></i> Performance Report
-              </h3>
-              {loading ? (
-                <div className="flex gap-3 items-center text-gray-400 py-6">
-                  <div className="w-2 h-2 bg-ino-red rounded-full animate-ping"></div>
-                  <span className="text-xs font-bold uppercase tracking-widest">Optimizing Route...</span>
-                </div>
-              ) : (
-                <p className="text-sm text-gray-300 leading-relaxed italic border-l-2 border-ino-yellow/30 pl-4 py-1">
-                  {insight}
-                </p>
-              )}
-              <div className="mt-8 pt-4 border-t border-white/5 flex justify-between items-center">
-                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Node: INO-01</span>
-                <i className="ph-fill ph-shield-check text-green-500"></i>
-              </div>
-            </div>
-
-            <div className="h-40 bg-gray-100 dark:bg-gray-900 rounded-[32px] overflow-hidden relative shadow-inner border border-gray-200 dark:border-gray-700">
+            <div className="h-full bg-gray-100 dark:bg-gray-900 rounded-[32px] overflow-hidden relative shadow-inner border border-gray-200 dark:border-gray-700 min-h-[300px]">
                <div className="absolute inset-0 opacity-20 dark:opacity-40 grayscale" style={{ backgroundImage: 'url(https://www.google.com/maps/vt/pb=!1m4!1m3!1i15!2i19747!3i12480!2m3!1e0!2sm!3i665181755!3m8!2sen!3set!5e1105!12m4!1e68!2m2!1sset!2sRoadmap!4e0!5m1!1e0!23i4111425)' }}></div>
                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
                   <div className="w-12 h-12 bg-ino-red rounded-full flex items-center justify-center text-white shadow-2xl animate-bounce border-4 border-white dark:border-gray-800">
@@ -140,6 +113,7 @@ const OrderTrackerPage: React.FC<Props> = ({ onBack }) => {
                   <div className="mt-2 bg-white dark:bg-gray-800 px-3 py-1 rounded-full text-[9px] font-black text-admas-blue dark:text-ino-yellow shadow-lg border border-gray-100 dark:border-gray-700 uppercase tracking-widest">
                     Live Tracking
                   </div>
+                  <p className="mt-4 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-white/80 dark:bg-gray-800/80 px-4 py-1 rounded-full">Node: INO-01</p>
                </div>
             </div>
           </div>

@@ -14,15 +14,35 @@ export interface Food {
   name: string;
   description: string;
   price: number;
-  imageUrl?: string;
+  imageUrl: string;
   category: string;
   ingredients: string[];
   calories?: number;
-  spicyLevel?: 'None' | 'Mild' | 'Medium' | 'Hot';
+  spicyLevel: 'None' | 'Mild' | 'Medium' | 'Hot';
   sizeOptions: SizeOption[];
   hasCookingPreference?: boolean;
   availableToppings: Modifier[];
   availableSauces: string[];
+  isAvailable: boolean;
+}
+
+export interface SystemMessage {
+  id: string;
+  text: string;
+  timestamp: string;
+  isRead: boolean;
+  type: 'status' | 'alert' | 'general';
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  password?: string;
+  isAdmin: boolean;
+  phone?: string;
+  status: 'Active' | 'Suspended';
+  notifications: SystemMessage[];
 }
 
 export interface ConfiguredItem {
@@ -34,9 +54,10 @@ export interface ConfiguredItem {
   selectedSize: string;
   selectedToppings: string[];
   selectedSauce: string;
-  modifiers: { [key: string]: 'Add' | 'Remove' | 'Extra' | 'Standard' };
+  modifiers: { [key: string]: 'Add' | 'Remove' | 'Extra' | 'Standard' | 'No Salt' | 'No Spice' };
   cookingPreference?: 'Rare' | 'Medium' | 'Well-done';
   notes?: string;
+  _hash?: string;
 }
 
 export interface OrderItem {
@@ -49,9 +70,14 @@ export interface OrderItem {
 
 export interface Order {
   _id: string;
-  user: string;
+  user: any; 
   orderItems: OrderItem[];
   totalPrice: number;
   status: 'Pending' | 'Preparing' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
+  paymentMethod?: string;
+  paymentReceipt?: string;
+  deliveryLocation?: string;
+  deliveryFee?: number;
   createdAt: string;
+  history?: { status: string; time: string }[];
 }

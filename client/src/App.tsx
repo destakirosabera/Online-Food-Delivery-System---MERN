@@ -10,14 +10,16 @@ import Footer from './components/layout/Footer';
 import HomePage from './pages/HomePage';
 import MenuPage from './pages/MenuPage';
 import TrayPage from './pages/TrayPage';
+import PaymentPage from './pages/PaymentPage';
 import OrderTrackerPage from './pages/OrderTrackerPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AboutPage from './pages/AboutPage';
 import SupportPage from './pages/SupportPage';
 import ProfilePage from './pages/ProfilePage';
 import AuthPage from './pages/AuthPage';
+import NotificationsPage from './pages/NotificationsPage';
 
-export type Page = 'home' | 'menu' | 'admin' | 'tray' | 'tracker' | 'about' | 'support' | 'profile' | 'auth';
+export type Page = 'home' | 'menu' | 'admin' | 'tray' | 'payment' | 'tracker' | 'about' | 'support' | 'profile' | 'auth' | 'notifications';
 
 const AppContent: React.FC = () => {
   const [history, setHistory] = useState<Page[]>(['home']);
@@ -29,12 +31,26 @@ const AppContent: React.FC = () => {
   const navigateTo = (page: Page) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // Access Control: Menu is protected
-    if (page === 'menu' && !isAuthenticated) {
-      setPendingRedirect('menu');
+    if (['tray', 'payment', 'tracker', 'profile', 'notifications'].includes(page) && !isAuthenticated) {
+      setPendingRedirect(page);
       setHistory(prev => [...prev, 'auth']);
       return;
     }
+
+    if (isAuthenticated && user?.isAdmin) {
+      if (['tray', 'payment', 'tracker', 'notifications'].includes(page)) {
+        setHistory(['admin']);
+        return;
+      }
+    }
+
+    if (isAuthenticated && !user?.isAdmin) {
+      if (page === 'admin') {
+        setHistory(['home']);
+        return;
+      }
+    }
+
     setHistory(prev => [...prev, page]);
   };
 
@@ -45,22 +61,21 @@ const AppContent: React.FC = () => {
     }
   };
 
-  // Auto-redirect logic after login
   useEffect(() => {
-    if (isAuthenticated && pendingRedirect) {
-      const target = pendingRedirect;
-      setPendingRedirect(null);
-      setHistory(prev => {
-        const newHistory = [...prev];
-        if (newHistory[newHistory.length - 1] === 'auth') {
-          newHistory[newHistory.length - 1] = target;
-        } else {
-          newHistory.push(target);
+    if (isAuthenticated) {
+      if (user?.isAdmin) {
+        if (currentPage === 'auth') setHistory(['admin']);
+      } else {
+        if (pendingRedirect) {
+          const target = pendingRedirect;
+          setPendingRedirect(null);
+          setHistory(['home', target]);
+        } else if (currentPage === 'auth') {
+          setHistory(['home']);
         }
-        return newHistory;
-      });
+      }
     }
-  }, [isAuthenticated, pendingRedirect]);
+  }, [isAuthenticated, user, pendingRedirect]);
 
   const renderPage = () => {
     const pageKey = history.length;
@@ -70,13 +85,15 @@ const AppContent: React.FC = () => {
           switch (currentPage) {
             case 'home': return <HomePage onNavigate={navigateTo} />;
             case 'menu': return <MenuPage onBack={goBack} />;
-            case 'admin': return <AdminDashboard onBack={goBack} />;
+            case 'admin': return <AdminDashboard onNavigate={navigateTo} onBack={goBack} />;
             case 'tray': return <TrayPage onNavigate={navigateTo} onBack={goBack} />;
+            case 'payment': return <PaymentPage onNavigate={navigateTo} onBack={goBack} />;
             case 'tracker': return <OrderTrackerPage onBack={goBack} />;
             case 'about': return <AboutPage onBack={goBack} />;
             case 'support': return <SupportPage onBack={goBack} />;
-            case 'profile': return <ProfilePage onBack={goBack} />;
+            case 'profile': return <ProfilePage onBack={goBack} onNavigate={navigateTo} />;
             case 'auth': return <AuthPage onBack={goBack} />;
+            case 'notifications': return <NotificationsPage onBack={goBack} />;
             default: return <HomePage onNavigate={navigateTo} />;
           }
         })()}
@@ -86,11 +103,11 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-white dark:bg-ino-dark transition-colors duration-300">
-      <Navbar onNavigate={navigateTo} currentPage={currentPage} />
-      <div className="flex-grow pt-0">
+      {currentPage !== 'admin' && <Navbar onNavigate={navigateTo} currentPage={currentPage} />}
+      <div className={`flex-grow`}>
         {renderPage()}
       </div>
-      <Footer onNavigate={navigateTo} />
+      {currentPage !== 'admin' && currentPage !== 'auth' && <Footer onNavigate={navigateTo} />}
     </div>
   );
 };

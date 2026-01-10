@@ -3,12 +3,12 @@ import Order from '../models/Order.js';
 import { GoogleGenAI } from '@google/genai';
 
 /**
- * @desc    Create new order
+ * @desc    Create new order with payment details
  * @access  Private
  */
 export const addOrderItems = async (req, res) => {
   try {
-    const { orderItems, totalPrice } = req.body;
+    const { orderItems, totalPrice, paymentMethod, paymentReceipt } = req.body;
     if (orderItems && orderItems.length === 0) {
       return res.status(400).json({ message: 'No order items' });
     }
@@ -16,6 +16,8 @@ export const addOrderItems = async (req, res) => {
       orderItems,
       user: req.user._id,
       totalPrice,
+      paymentMethod,
+      paymentReceipt,
       status: 'Pending'
     });
     const createdOrder = await order.save();
@@ -33,7 +35,6 @@ export const updateOrderStatus = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (order) {
-      // Validate incoming status against allowed transitions (optional, but good for production)
       const allowedStatuses = ['Pending', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'];
       const newStatus = req.body.status;
 
@@ -42,13 +43,13 @@ export const updateOrderStatus = async (req, res) => {
         const updatedOrder = await order.save();
         res.json(updatedOrder);
       } else {
-        res.status(400).json({ message: 'Invalid order status transition provided' });
+        res.status(400).json({ message: 'Invalid order status transition requested.' });
       }
     } else {
-      res.status(404).json({ message: 'Order identification failure. Asset not found.' });
+      res.status(404).json({ message: 'Asset identification failure. Record not found.' });
     }
   } catch (err) {
-    res.status(500).json({ message: 'Logistics Core Sync Error', error: err.message });
+    res.status(500).json({ message: 'Logistics Internal Sync Error', error: err.message });
   }
 };
 
@@ -62,24 +63,25 @@ export const generateOrderReport = async (req, res) => {
     const orders = await Order.find({}).limit(20).populate('user', 'name');
     
     const prompt = `
-      You are a Senior Logistics Consultant for In-N-Out Delivery at Admas University.
-      Perform a deep-dive analysis on the following operational data: ${JSON.stringify(orders)}.
+      You are a Senior Systems Analyst for a Food Logistics & Dispatch Portal.
+      Review the current dispatch queue: ${JSON.stringify(orders)}.
       
-      Requirements for the report:
-      1. Analyze the throughput and current backlog (Pending orders).
-      2. Identify merchant performance trends if applicable.
-      3. Provide a high-level executive summary for the University Logistics Dept.
-      4. Use a professional, analytical tone. Do not use AI-generated disclaimers.
+      Generate a professional executive summary covering:
+      1. Overall fulfillment performance.
+      2. Status distribution analysis.
+      3. Critical bottlenecks identified in the current transmission cycle.
+      
+      Maintain a highly professional, technical, and analytical tone suitable for a Computer Science Senior Final Year Project.
     `;
 
-    const result = await ai.models.generateContent({
+    const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: [{ parts: [{ text: prompt }] }],
     });
 
-    res.status(200).json({ report: result.text });
+    res.status(200).json({ report: response.text });
   } catch (error) {
     console.error('Gemini Intelligence Failure:', error);
-    res.status(500).json({ message: 'Logistics Intelligence Core Unavailable', error: error.message });
+    res.status(500).json({ message: 'Intelligence Module Core Unavailable', error: error.message });
   }
 };

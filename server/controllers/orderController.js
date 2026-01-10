@@ -1,8 +1,9 @@
+
 import Order from '../models/Order.js';
 
 export const addOrderItems = async (req, res) => {
   try {
-    const { orderItems, totalPrice } = req.body;
+    const { orderItems, totalPrice, deliveryLocation, deliveryFee, paymentMethod, paymentReceipt } = req.body;
     if (orderItems && orderItems.length === 0) {
       return res.status(400).json({ message: 'No order items' });
     }
@@ -10,6 +11,10 @@ export const addOrderItems = async (req, res) => {
       orderItems,
       user: req.user._id,
       totalPrice,
+      deliveryLocation,
+      deliveryFee,
+      paymentMethod,
+      paymentReceipt,
       status: 'Pending'
     });
     const createdOrder = await order.save();
