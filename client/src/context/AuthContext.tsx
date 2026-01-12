@@ -28,7 +28,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('user_session');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   const [allUsers, setAllUsers] = useState<User[]>([
     { id: 'admin-1', name: 'Logistics Admin', email: 'admin@gmail.com', password: 'admin@123', isAdmin: true, status: 'Active', notifications: [] },
     { id: 'cust-1', name: 'desta', email: 'desta@gmail.com', password: 'password123', isAdmin: false, phone: '0987654321', status: 'Active', notifications: [] }
@@ -43,6 +47,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (existing.status === 'Suspended') return { success: false, message: "Access Denied: Account suspended." };
 
     setUser(existing);
+    localStorage.setItem('user_session', JSON.stringify(existing));
     return { success: true, role: existing.isAdmin ? 'admin' : 'customer' };
   };
 
@@ -66,10 +71,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     setAllUsers(prev => [...prev, newUser]);
     setUser(newUser);
+    localStorage.setItem('user_session', JSON.stringify(newUser));
     return true;
   };
 
-  const logout = () => setUser(null);
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('user_session');
+  };
 
   const addNotification = (userId: string, message: string) => {
     const newMessage: SystemMessage = {
@@ -82,20 +91,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, notifications: [newMessage, ...u.notifications] } : u));
     if (user && user.id === userId) {
-      setUser(prev => prev ? { ...prev, notifications: [newMessage, ...prev.notifications] } : null);
+      const updatedUser = { ...user, notifications: [newMessage, ...user.notifications] };
+      setUser(updatedUser);
+      localStorage.setItem('user_session', JSON.stringify(updatedUser));
     }
   };
 
   const markAsRead = (messageId: string) => {
     if (!user) return;
     const updatedNotifs = user.notifications.map(n => n.id === messageId ? { ...n, isRead: true } : n);
-    setUser({ ...user, notifications: updatedNotifs });
+    const updatedUser = { ...user, notifications: updatedNotifs };
+    setUser(updatedUser);
+    localStorage.setItem('user_session', JSON.stringify(updatedUser));
     setAllUsers(prev => prev.map(u => u.id === user.id ? { ...u, notifications: updatedNotifs } : u));
   };
 
   const clearNotifications = () => {
     if (!user) return;
-    setUser({ ...user, notifications: [] });
+    const updatedUser = { ...user, notifications: [] };
+    setUser(updatedUser);
+    localStorage.setItem('user_session', JSON.stringify(updatedUser));
     setAllUsers(prev => prev.map(u => u.id === user.id ? { ...u, notifications: [] } : u));
   };
 
@@ -121,14 +136,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateUser = (userId: string, updates: Partial<User>) => {
     setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
     if (user && user.id === userId) {
-      setUser(prev => prev ? { ...prev, ...updates } : null);
+      const updatedUser = { ...user, ...updates };
+      setUser(updatedUser);
+      localStorage.setItem('user_session', JSON.stringify(updatedUser));
     }
   };
 
   const updatePassword = (userId: string, newPass: string) => {
     setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, password: newPass } : u));
     if (user && user.id === userId) {
-      setUser(prev => prev ? { ...prev, password: newPass } : null);
+      const updatedUser = { ...user, password: newPass };
+      setUser(updatedUser);
+      localStorage.setItem('user_session', JSON.stringify(updatedUser));
     }
   };
 

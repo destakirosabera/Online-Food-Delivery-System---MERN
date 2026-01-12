@@ -6,6 +6,7 @@ interface CartContextType {
   cart: ConfiguredItem[];
   addToCart: (item: ConfiguredItem) => void;
   removeFromCart: (configHash: string) => void;
+  updateQty: (hash: string, delta: number) => void;
   clearCart: () => void;
   totalItems: number;
 }
@@ -15,7 +16,6 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<ConfiguredItem[]>([]);
 
-  // Simple hash generator for item configuration uniqueness
   const getHash = (item: ConfiguredItem) => {
     return `${item.foodId}-${item.selectedSize}-${item.selectedSauce}-${item.selectedToppings.sort().join(',')}-${JSON.stringify(item.modifiers)}-${item.cookingPreference}`;
   };
@@ -31,6 +31,16 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
+  const updateQty = (hash: string, delta: number) => {
+    setCart(prev => prev.map(item => {
+      if ((item as any)._hash === hash) {
+        const newQty = Math.max(1, item.qty + delta);
+        return { ...item, qty: newQty };
+      }
+      return item;
+    }));
+  };
+
   const removeFromCart = (hash: string) => {
     setCart(prev => prev.filter(i => (i as any)._hash !== hash));
   };
@@ -40,7 +50,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const totalItems = cart.reduce((acc, item) => acc + item.qty, 0);
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, clearCart, totalItems }}>
+    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQty, clearCart, totalItems }}>
       {children}
     </CartContext.Provider>
   );

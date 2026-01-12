@@ -1,6 +1,6 @@
 {
-  "name": "In-N-Out Logistics Portal",
-  "description": "A professional food delivery and urban logistics management system with integrated AI intelligence.",
+  "name": "In-N-Out Eats team project",
+  "description": "A premium student-built MERN food delivery platform with AI integration.",
   "requestFramePermissions": [
     "camera"
   ]

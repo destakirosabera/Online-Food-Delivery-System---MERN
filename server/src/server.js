@@ -3,6 +3,10 @@ import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import app from './app.js';
 
+/**
+ * LOGISTICS CONTROL SYSTEM V1.0.4 - PRODUCTION BUILD
+ * Managed by Internal Development Team
+ */
 dotenv.config();
 
 const startServer = async () => {
@@ -12,18 +16,19 @@ const startServer = async () => {
         
         app.listen(PORT, () => {
             console.log(`
-            ================================================
-            IN-N-OUT LOGISTICS SERVER ACTIVE
-            ================================================
-            Status: OPERATIONAL
-            Port: ${PORT}
-            Architecture: MERN (Enterprise Ready)
-            AI Core: Gemini 3 Pro
-            ================================================
+┌──────────────────────────────────────────────────────────┐
+│      IN-N-OUT ENTERPRISE LOGISTICS CONTROL NODE          │
+├──────────────────────────────────────────────────────────┤
+│ Environment: [ PRODUCTION ]                              │
+│ Build ID:    V1.0.4-LATEST                               │
+│ Cluster:     Node.js Active                              │
+│ Port:        ${PORT}                                         │
+│ Health:      [ STABLE ]                                  │
+└──────────────────────────────────────────────────────────┘
             `);
         });
     } catch (err) {
-        console.error('Critical Database Failure:', err);
+        console.error('CRITICAL ERROR: SYSTEM UNABLE TO INITIALIZE PORT BINDING', err);
         process.exit(1);
     }
 };

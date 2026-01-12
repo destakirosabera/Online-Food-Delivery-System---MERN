@@ -11,21 +11,19 @@ import BackButton from '../components/common/BackButton';
 
 interface Props {
   onBack: () => void;
+  onNavigate?: (page: any) => void;
 }
 
-const MenuPage: React.FC<Props> = ({ onBack }) => {
+const MenuPage: React.FC<Props> = ({ onBack, onNavigate }) => {
   const { menuItems, categories } = useMenu();
   const { addToCart } = useCart();
   const { showToast } = useToast();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [activeCategory, setActiveCategory] = useState('All');
   
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [size, setSize] = useState('');
   const [modifiers, setModifiers] = useState<{ [key: string]: any }>({});
-  const [toppings, setToppings] = useState<string[]>([]);
-  const [sauce, setSauce] = useState('');
-  const [pref, setPref] = useState<'Rare' | 'Medium' | 'Well-done'>('Medium');
   const [notes, setNotes] = useState('');
 
   const categoryIcons: {[key: string]: string} = {
@@ -39,16 +37,24 @@ const MenuPage: React.FC<Props> = ({ onBack }) => {
   };
 
   const openConfig = (food: Food) => {
+    if (!isAuthenticated) {
+      showToast("Access Denied: Please login to start ordering.", "error");
+      return;
+    }
+
     setSelectedFood(food);
     setSize(food.sizeOptions[0]?.name || 'Regular');
-    setSauce(food.availableSauces[0] || '');
-    setToppings([]);
     setNotes('');
+    
+    // Initialize modifiers only for non-drinks
     const initialMods: any = {};
-    food.ingredients.forEach(ing => initialMods[ing] = 'Standard');
-    // Global Seasoning Choices
-    initialMods['Salt'] = 'Standard';
-    initialMods['Spice'] = 'Standard';
+    if (food.category !== 'Drinks') {
+      food.ingredients.forEach(ing => initialMods[ing] = 'Normal');
+      // Add Salt and Spice by default if they are common modifiers, 
+      // or rely purely on admin-defined ingredients.
+      if (!initialMods['Salt']) initialMods['Salt'] = 'Normal';
+      if (!initialMods['Spice']) initialMods['Spice'] = 'Normal';
+    }
     setModifiers(initialMods);
   };
 
@@ -57,18 +63,19 @@ const MenuPage: React.FC<Props> = ({ onBack }) => {
     let total = selectedFood.price;
     const sizeOpt = selectedFood.sizeOptions.find(s => s.name === size);
     if (sizeOpt) total += sizeOpt.priceOffset;
-    toppings.forEach(t => {
-      const top = selectedFood.availableToppings.find(opt => opt.name === t);
-      if (top) total += top.priceOffset;
-    });
-    Object.keys(modifiers).forEach(ing => {
-      if (modifiers[ing] === 'Extra') total += 25; // standard extra fee per component
-    });
+    
+    // Only calculate modifier costs for non-drinks
+    if (selectedFood.category !== 'Drinks') {
+      Object.keys(modifiers).forEach(ing => {
+        if (modifiers[ing] === 'Extra') total += 25;
+      });
+    }
     return total;
   };
 
   const handleConfirmAdd = () => {
     if (!selectedFood) return;
+    
     if (user?.isAdmin) {
       showToast("Security Breach Avoided: Admin accounts cannot place orders.", "error");
       return;
@@ -81,16 +88,17 @@ const MenuPage: React.FC<Props> = ({ onBack }) => {
       qty: 1,
       imageUrl: selectedFood.imageUrl,
       selectedSize: size,
-      selectedSauce: sauce,
-      selectedToppings: toppings,
-      modifiers: modifiers,
-      cookingPreference: selectedFood.hasCookingPreference ? pref : undefined,
+      selectedSauce: '',
+      selectedToppings: [],
+      modifiers: selectedFood.category === 'Drinks' ? {} : modifiers,
       notes: notes
     };
     addToCart(item);
     showToast(`${selectedFood.name} staged to dispatch tray!`, 'success');
     setSelectedFood(null);
   };
+
+  const isDrink = selectedFood?.category === 'Drinks';
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-24 relative page-transition bg-white dark:bg-ino-dark transition-colors duration-300">
@@ -146,7 +154,7 @@ const MenuPage: React.FC<Props> = ({ onBack }) => {
                   onClick={() => openConfig(food)}
                   className="w-full bg-ino-red text-white py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest hover:bg-red-700 transition-all shadow-md active:scale-95"
                 >
-                  Configure Unit
+                  Order
                 </button>
               </div>
             </div>
@@ -160,7 +168,6 @@ const MenuPage: React.FC<Props> = ({ onBack }) => {
         title={`Customizing: ${selectedFood?.name}`}
       >
         <div className="max-h-[65vh] overflow-y-auto pr-4 custom-scroll dark:text-white overscroll-contain">
-          {/* SIZE MODULE */}
           <div className="mb-10">
             <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 block mb-6">Select Size Module</label>
             <div className="grid grid-cols-2 gap-4">
@@ -181,53 +188,34 @@ const MenuPage: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* INGREDIENT MODIFIERS */}
-          <div className="mb-10">
-            <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 block mb-6">Modify Components</label>
-            <div className="space-y-3">
-              {Object.keys(modifiers).map(ing => (
-                <div key={ing} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
-                  <span className="text-[10px] font-black uppercase text-gray-700 dark:text-gray-200">{ing}</span>
-                  <div className="flex bg-white dark:bg-gray-700 rounded-xl border border-gray-100 dark:border-gray-600 p-0.5 shadow-sm">
-                    {['Remove', 'Standard', 'Extra'].map(type => (
-                      <button
-                        key={type}
-                        onClick={() => setModifiers(prev => ({ ...prev, [ing]: type }))}
-                        className={`px-3 py-1.5 text-[8px] font-black uppercase rounded-lg transition-all ${
-                          modifiers[ing] === type 
-                          ? 'bg-ino-red text-white shadow-md' 
-                          : 'text-gray-400 hover:text-gray-600 dark:text-gray-500'
-                        }`}
-                      >
-                        {type === 'Standard' ? 'Normal' : type}
-                        {type === 'Remove' && ['Salt', 'Spice'].includes(ing) ? 'No' : ''}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* SAUCE INTERFACE */}
-          {selectedFood?.availableSauces.length ? (
+          {!isDrink && Object.keys(modifiers).length > 0 && (
             <div className="mb-10">
-              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 block mb-6">Select Sauce Interface</label>
-              <div className="grid grid-cols-2 gap-3">
-                {selectedFood?.availableSauces.map(s => (
-                   <button
-                     key={s}
-                     onClick={() => setSauce(s)}
-                     className={`p-4 rounded-xl text-[9px] font-black uppercase border-2 transition-all ${sauce === s ? 'border-ino-red text-ino-red bg-red-50 dark:bg-red-900/20' : 'border-gray-50 dark:border-gray-700 text-gray-400'}`}
-                   >
-                     {s}
-                   </button>
+              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 block mb-6">Modify Components</label>
+              <div className="space-y-3">
+                {Object.keys(modifiers).map(ing => (
+                  <div key={ing} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                    <span className="text-[10px] font-black uppercase text-gray-700 dark:text-gray-200">{ing}</span>
+                    <div className="flex bg-white dark:bg-gray-700 rounded-xl border border-gray-100 dark:border-gray-600 p-0.5 shadow-sm">
+                      {['Remove', 'Normal', 'Extra'].map(type => (
+                        <button
+                          key={type}
+                          onClick={() => setModifiers(prev => ({ ...prev, [ing]: type }))}
+                          className={`px-4 py-1.5 text-[8px] font-black uppercase rounded-lg transition-all ${
+                            modifiers[ing] === type 
+                            ? 'bg-ino-red text-white shadow-md' 
+                            : 'text-gray-400 hover:text-gray-600 dark:text-gray-500'
+                          }`}
+                        >
+                          {type === 'Remove' && (ing === 'Salt' || ing === 'Spice') ? 'RemoveNo' : type}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
-          ) : null}
+          )}
 
-          {/* TRANSMISSION NOTES */}
           <div className="mb-6">
             <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 block mb-4">Transmission Notes</label>
             <textarea 
@@ -239,7 +227,6 @@ const MenuPage: React.FC<Props> = ({ onBack }) => {
           </div>
         </div>
 
-        {/* PRICE SUMMARY & ADD */}
         <div className="pt-8 border-t dark:border-gray-700 mt-6 flex items-center justify-between">
           <div>
             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Liability Value</span>

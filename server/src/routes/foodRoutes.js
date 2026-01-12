@@ -1,10 +1,13 @@
 
 import express from 'express';
-import { getFoods, addFood } from '../controllers/foodController.js';
-import { protect, admin } from '../middleware/authMiddleware.js';
-
 const router = express.Router();
 
-router.route('/').get(getFoods).post(protect, admin, addFood);
+// Mock implementation for academic demonstration
+router.get('/', (req, res) => {
+    res.json([
+        { _id: '1', name: 'Classic Cheeseburger', price: 5.99, category: 'Burgers' },
+        { _id: '2', name: 'Pepperoni Pizza', price: 12.50, category: 'Pizza' }
+    ]);
+});
 
 export default router;

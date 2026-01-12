@@ -10,6 +10,7 @@ interface OrderContextType {
   fetchOrders: () => Promise<void>;
   placeOrder: (orderData: any) => Promise<void>;
   updateStatus: (id: string, status: string) => Promise<void>;
+  updateReviewFeedback: (id: string, feedback: 'Helpful' | 'Not Helpful') => Promise<void>;
   setCurrentOrder: (order: Order | null) => void;
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
 }
@@ -26,63 +27,55 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const { data } = await api.get('/orders');
       setOrders(data);
     } catch (err) {
-      console.warn('Logistics Backend Unreachable. Data persisted in local context.');
+      console.warn('Backend link idle.');
     }
   };
 
   const placeOrder = async (orderData: any) => {
-    // Capture the current user ID for proper association
-    const userId = user?.id || 'guest-node';
+    const userId = user?.id || 'guest-' + Math.random().toString(36).substr(2, 5);
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    try {
-      const { data } = await api.post('/orders', { ...orderData, user: userId });
-      setOrders(prev => [data, ...prev]);
-      setCurrentOrder(data);
-    } catch (err) {
-      // Robust Mock Order for offline/demo mode
-      const mockOrder: Order = {
-        _id: 'ORD-' + Math.random().toString(36).substr(2, 9).toUpperCase(),
-        user: userId, // Correctly associate with the logged-in user
-        orderItems: orderData.orderItems,
-        totalPrice: orderData.totalPrice,
-        deliveryLocation: orderData.deliveryLocation,
-        deliveryFee: orderData.deliveryFee,
-        status: 'Pending',
-        paymentMethod: orderData.paymentMethod,
-        paymentReceipt: orderData.paymentReceipt,
-        createdAt: new Date().toISOString()
-      };
-      setOrders(prev => [mockOrder, ...prev]);
-      setCurrentOrder(mockOrder);
-    }
+    // Mock processing for simulation
+    const mockOrder: Order = {
+      _id: 'ORD-' + Math.random().toString(36).substr(2, 9).toUpperCase(),
+      user: userId,
+      orderItems: orderData.orderItems,
+      totalPrice: orderData.totalPrice,
+      destination: orderData.destination,
+      deliveryFee: orderData.deliveryFee,
+      status: 'Pending',
+      paymentMethod: orderData.paymentMethod,
+      bankName: orderData.bankName,
+      accountNumber: orderData.accountNumber,
+      paymentReceipt: orderData.paymentReceipt,
+      extraMessage: orderData.extraMessage,
+      customerName: orderData.customerName,
+      customerEmail: orderData.customerEmail,
+      customerPhone: orderData.customerPhone,
+      createdAt: new Date().toISOString(),
+      history: [{ status: 'Pending', time: timeStr }]
+    };
+
+    setOrders(prev => [mockOrder, ...prev]);
+    setCurrentOrder(mockOrder);
+    
+    // In real app we would send to API here
+    // await api.post('/orders', mockOrder);
   };
 
   const updateStatus = async (id: string, status: string) => {
-    try {
-      await api.put(`/orders/${id}/status`, { status });
-      processStatusChange(id, status);
-    } catch (err) {
-      processStatusChange(id, status);
-    }
-  };
-
-  const processStatusChange = (id: string, status: string) => {
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setOrders(prev => prev.map(o => {
       if (o._id === id) {
-        const userId = typeof o.user === 'string' ? o.user : (o.user as any).id || (o.user as any)._id;
-        
-        if (status === 'Preparing') addNotification(userId, `Order #${o._id.slice(-6).toUpperCase()} is now being prepared.`);
-        if (status === 'Out for Delivery') addNotification(userId, `Order #${o._id.slice(-6).toUpperCase()} is dispatched and in transit.`);
-        if (status === 'Delivered') addNotification(userId, `Order #${o._id.slice(-6).toUpperCase()} has been fulfilled.`);
-        if (status === 'Cancelled') addNotification(userId, `Order #${o._id.slice(-6).toUpperCase()} was cancelled by admin.`);
-        
-        return { ...o, status: status as any };
+        addNotification(typeof o.user === 'string' ? o.user : (o.user as any).id, `Order updated to: ${status}`);
+        return { ...o, status: status as any, history: [...(o.history || []), { status, time: timeStr }] };
       }
       return o;
     }));
-    if (currentOrder?._id === id) {
-      setCurrentOrder(prev => prev ? { ...prev, status: status as any } : null);
-    }
+  };
+
+  const updateReviewFeedback = async (id: string, feedback: 'Helpful' | 'Not Helpful') => {
+    setOrders(prev => prev.map(o => o._id === id ? { ...o, adminFeedback: feedback } : o));
   };
 
   return (
@@ -92,6 +85,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       fetchOrders, 
       placeOrder, 
       updateStatus,
+      updateReviewFeedback,
       setCurrentOrder,
       setOrders
     }}>

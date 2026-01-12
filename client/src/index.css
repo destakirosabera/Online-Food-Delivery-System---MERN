@@ -1,33 +1,23 @@
+/* 
+  Tailwind base, components, and utilities are injected via the 
+  cdn.tailwindcss.com script in the HTML files.
+  Standard CSS below handles initial base styles to avoid IDE diagnostic errors.
+*/
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import './App.css';
 
-@layer base {
-  body {
-    @apply antialiased text-gray-900 bg-white dark:bg-ino-dark dark:text-gray-100 transition-colors duration-300;
-    font-family: 'Inter', sans-serif;
-  }
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #111827;
+  background-color: #ffffff;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+  font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
-@layer components {
-  .btn-primary {
-    @apply bg-ino-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl transition-all transform active:scale-95 shadow-lg;
-  }
-  .btn-secondary {
-    @apply bg-admas-blue hover:bg-blue-900 text-white font-bold py-3 px-6 rounded-xl transition-all transform active:scale-95 shadow-lg;
-  }
-  .glass-card {
-    @apply bg-white/80 dark:bg-ino-dark/80 backdrop-blur-md border border-white/20 dark:border-gray-800 shadow-xl rounded-2xl;
-  }
-}
-
-::-webkit-scrollbar {
-  width: 8px;
-}
-::-webkit-scrollbar-track {
-  @apply bg-gray-100 dark:bg-gray-900;
-}
-::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 dark:bg-gray-700 rounded-full hover:bg-gray-400 dark:hover:bg-gray-600;
+.dark body {
+  background-color: #0D0D0D;
+  color: #F3F4F6;
 }

@@ -11,7 +11,7 @@ interface Props {
 }
 
 const TrayPage: React.FC<Props> = ({ onNavigate, onBack }) => {
-  const { cart, removeFromCart } = useCart();
+  const { cart, removeFromCart, updateQty } = useCart();
   const total = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
 
   const handleGoToPayment = () => {
@@ -52,11 +52,29 @@ const TrayPage: React.FC<Props> = ({ onNavigate, onBack }) => {
                     </div>
                   </div>
                 </div>
+                
                 <div className="flex items-center gap-8 mt-4 md:mt-0 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 dark:border-gray-700 pt-4 md:pt-0">
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase">Unit Total</p>
+                  <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900 p-2 rounded-2xl border border-gray-100 dark:border-gray-700">
+                    <button 
+                      onClick={() => updateQty((item as any)._hash, -1)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-gray-800 text-ino-red shadow-sm hover:bg-ino-red hover:text-white transition-all"
+                    >
+                      <i className="ph ph-minus font-bold"></i>
+                    </button>
+                    <span className="font-black text-sm w-6 text-center">{item.qty}</span>
+                    <button 
+                      onClick={() => updateQty((item as any)._hash, 1)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-gray-800 text-ino-red shadow-sm hover:bg-ino-red hover:text-white transition-all"
+                    >
+                      <i className="ph ph-plus font-bold"></i>
+                    </button>
+                  </div>
+
+                  <div className="text-right min-w-[100px]">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">Item Total</p>
                     <span className="font-black text-xl text-admas-blue dark:text-white">{formatPrice(item.price * item.qty)}</span>
                   </div>
+                  
                   <button onClick={() => removeFromCart((item as any)._hash)} className="p-3 bg-red-50 dark:bg-red-900/20 text-ino-red hover:bg-ino-red hover:text-white rounded-2xl transition-all shadow-sm">
                     <i className="ph ph-trash text-xl"></i>
                   </button>

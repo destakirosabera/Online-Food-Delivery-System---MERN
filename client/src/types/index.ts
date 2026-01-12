@@ -75,9 +75,18 @@ export interface Order {
   totalPrice: number;
   status: 'Pending' | 'Preparing' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
   paymentMethod?: string;
+  bankName?: string;
+  accountNumber?: string;
   paymentReceipt?: string;
-  deliveryLocation?: string;
+  destination?: string;
+  extraMessage?: string;
   deliveryFee?: number;
   createdAt: string;
   history?: { status: string; time: string }[];
+  rating?: number;
+  reviewComment?: string;
+  adminFeedback?: 'Helpful' | 'Not Helpful' | null;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
 }
